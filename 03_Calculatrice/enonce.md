@@ -158,6 +158,19 @@ double[] tableau = new double[5];  // tableau de 5 éléments
 tableau[0] = 10.5;                 // affectation
 ```
 
+### Construire des chaines de caractères
+L'opérateur + permet de faire des concaténations
+```java
+String message1 = "Hello";
+String message2 = "World";
+String message3 = message1 + message2;
+```
+Avec des types différents : concaténer n'importe quoi à un String
+```java
+int nombre = 5;
+String message = "Voici un nombre: " + nombre;
+```
+
 ## Criteres de validation
 
 Avant de consulter la solution, verifiez que votre programme :
