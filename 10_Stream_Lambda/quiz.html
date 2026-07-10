@@ -1,0 +1,591 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Quiz 10 : Stream &amp; Lambda - Analyse de clients</title>
+<style>
+  :root {
+    --vert-fonce: #2d5016;
+    --vert: #4a7c23;
+    --vert-ok: #27ae60;
+    --rouge: #c0392b;
+    --code-fond: #1e1e1e;
+    --code-texte: #f8f8f2;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: #f4f6f2;
+    color: #2c3e50;
+    line-height: 1.55;
+  }
+  .conteneur { max-width: 880px; margin: 0 auto; padding: 24px 16px 120px; }
+  header.bandeau {
+    background: var(--vert-fonce);
+    color: #fff;
+    padding: 28px 16px;
+    text-align: center;
+  }
+  header.bandeau h1 { margin: 0 0 6px; font-size: 1.7em; }
+  header.bandeau p { margin: 0; opacity: .85; }
+  h2.section-titre {
+    color: var(--vert-fonce);
+    border-bottom: 3px solid var(--vert);
+    padding-bottom: 6px;
+    margin-top: 40px;
+  }
+  .carte {
+    background: #fff;
+    border-radius: 10px;
+    padding: 18px 20px;
+    margin: 16px 0;
+    box-shadow: 0 1px 4px rgba(0,0,0,.08);
+    border-left: 5px solid transparent;
+  }
+  .carte.ok { border-left-color: var(--vert-ok); }
+  .carte.ko { border-left-color: var(--rouge); }
+  .q-num { font-weight: 700; color: var(--vert); margin-right: 6px; }
+  .q-verdict { float: right; font-size: 1.2em; }
+  code {
+    background: var(--code-fond);
+    color: var(--code-texte);
+    border-radius: 4px;
+    padding: 1px 6px;
+    font-size: .88em;
+    font-family: "SF Mono", Menlo, Consolas, monospace;
+  }
+  pre {
+    background: var(--code-fond);
+    color: var(--code-texte);
+    border-radius: 8px;
+    padding: 12px 14px;
+    overflow-x: auto;
+    font-size: .85em;
+    font-family: "SF Mono", Menlo, Consolas, monospace;
+    line-height: 1.45;
+  }
+  pre code { background: transparent; padding: 0; }
+  .options { margin-top: 12px; }
+  label.option {
+    display: block;
+    padding: 8px 10px;
+    border: 1px solid #dde3d8;
+    border-radius: 8px;
+    margin: 6px 0;
+    cursor: pointer;
+    transition: background .15s;
+  }
+  label.option:hover { background: #eef3ea; }
+  label.option input { margin-right: 10px; }
+  label.option pre { margin: 8px 0 0 26px; }
+  .corrige label.option { cursor: default; }
+  .corrige label.option:hover { background: inherit; }
+  label.option.bonne { border-color: var(--vert-ok); background: #eafaf1; }
+  label.option.mauvaise { border-color: var(--rouge); background: #fdedec; }
+  .explication {
+    display: none;
+    margin-top: 12px;
+    padding: 12px 14px;
+    background: #f2f8ec;
+    border-radius: 8px;
+    border: 1px solid #cfe3bd;
+  }
+  .corrige .explication { display: block; }
+  .barre {
+    position: fixed;
+    bottom: 0; left: 0; right: 0;
+    background: #fff;
+    box-shadow: 0 -2px 8px rgba(0,0,0,.12);
+    padding: 12px 16px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 18px;
+    flex-wrap: wrap;
+  }
+  .barre .compteur { color: #666; }
+  button {
+    background: var(--vert);
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    padding: 12px 26px;
+    font-size: 1em;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  button:hover { background: var(--vert-fonce); }
+  button.secondaire { background: #7f8c8d; }
+  #resultat {
+    display: none;
+    background: var(--vert-fonce);
+    color: #fff;
+    border-radius: 10px;
+    padding: 20px 24px;
+    margin: 24px 0;
+    text-align: center;
+  }
+  #resultat .score { font-size: 2.2em; font-weight: 800; }
+  #resultat .detail { opacity: .9; margin-top: 6px; }
+  table.recap { border-collapse: collapse; margin: 10px auto 0; color: #fff; }
+  table.recap td, table.recap th { padding: 4px 14px; border-bottom: 1px solid rgba(255,255,255,.3); }
+  .intro pre { font-size: .8em; }
+
+  /* Panneau flottant "Donnees clients" */
+  #overlay-donnees {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,.45);
+    z-index: 50;
+  }
+  #overlay-donnees.ouvert { display: block; }
+  #panneau-donnees {
+    position: fixed;
+    left: 50%;
+    bottom: 76px;
+    transform: translateX(-50%);
+    width: min(92vw, 460px);
+    background: #fff;
+    border-radius: 12px;
+    box-shadow: 0 8px 30px rgba(0,0,0,.3);
+    padding: 18px 20px 20px;
+    z-index: 51;
+  }
+  #panneau-donnees h3 {
+    margin: 0 0 12px;
+    color: var(--vert-fonce);
+    font-size: 1.1em;
+  }
+  #panneau-donnees .fermer {
+    position: absolute;
+    top: 10px; right: 14px;
+    background: none;
+    border: none;
+    color: #888;
+    font-size: 1.4em;
+    line-height: 1;
+    padding: 0;
+    cursor: pointer;
+  }
+  table.donnees {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: .95em;
+  }
+  table.donnees th, table.donnees td {
+    padding: 6px 10px;
+    text-align: left;
+    border-bottom: 1px solid #e3e8dd;
+  }
+  table.donnees th {
+    color: var(--vert-fonce);
+    border-bottom: 2px solid var(--vert);
+  }
+  table.donnees td.num { text-align: right; font-variant-numeric: tabular-nums; }
+  table.donnees tr.premium td { font-weight: 600; }
+  #panneau-donnees .regle {
+    margin: 12px 0 0;
+    font-size: .9em;
+    color: #555;
+  }
+</style>
+</head>
+<body>
+
+<header class="bandeau">
+  <h1>Quiz : Stream &amp; Lambda</h1>
+</header>
+
+<div class="conteneur">
+
+  <div class="carte intro">
+    <h2 style="margin-top:0;color:var(--vert-fonce)">Le scénario fil rouge</h2>
+    <p>Vous rejoignez l'équipe qui développe un <strong>outil d'analyse de la base clients</strong>
+    d'une entreprise. Section A : on vérifie les concepts. Section B : on écrit les briques du
+    projet. Section C : on relit les pipelines assemblés par l'équipe. Section D : l'outil
+    passe aux statistiques (agrégations &amp; Collectors — avancé).</p>
+    <p>Toutes les questions s'appuient sur la classe <code>Client</code> et les données suivantes
+    (un client est <strong>premium</strong> si ses dépenses dépassent 1000 EUR) :</p>
+<pre>public class Client {
+    private String nom;      // getNom()
+    private String ville;    // getVille()
+    private int age;         // getAge()
+    private double depenses; // getDepenses()
+
+    @Override
+    public String toString() {
+        return nom + " (" + ville + ", " + age + " ans, " + depenses + " EUR)";
+    }
+}
+
+List&lt;Client&gt; clients = List.of(
+    new Client("Alice", "Paris", 32, 1500.0),
+    new Client("Bob", "Lyon", 25, 800.0),
+    new Client("Charlie", "Paris", 45, 2500.0),
+    new Client("Diana", "Marseille", 28, 1200.0),
+    new Client("Eve", "Lyon", 35, 950.0),
+    new Client("Marc", "Paris", 52, 3200.0)
+);</pre>
+  </div>
+
+  <div id="resultat"></div>
+  <div id="quiz"></div>
+  <div id="resultat-bas"></div>
+
+</div>
+
+<div id="overlay-donnees">
+  <div id="panneau-donnees">
+    <button class="fermer" id="btn-fermer-donnees" aria-label="Fermer">&times;</button>
+    <h3>Données clients</h3>
+    <table class="donnees">
+      <thead>
+        <tr><th>Client</th><th>Ville</th><th>Âge</th><th>Dépenses</th></tr>
+      </thead>
+      <tbody>
+        <tr class="premium"><td>Alice</td><td>Paris</td><td class="num">32</td><td class="num">1500</td></tr>
+        <tr><td>Bob</td><td>Lyon</td><td class="num">25</td><td class="num">800</td></tr>
+        <tr class="premium"><td>Charlie</td><td>Paris</td><td class="num">45</td><td class="num">2500</td></tr>
+        <tr class="premium"><td>Diana</td><td>Marseille</td><td class="num">28</td><td class="num">1200</td></tr>
+        <tr><td>Eve</td><td>Lyon</td><td class="num">35</td><td class="num">950</td></tr>
+        <tr class="premium"><td>Marc</td><td>Paris</td><td class="num">52</td><td class="num">3200</td></tr>
+      </tbody>
+    </table>
+    <p class="regle"><strong>premium</strong> = dépenses > 1000 EUR (en gras dans le tableau)</p>
+  </div>
+</div>
+
+<div class="barre">
+  <button id="btn-donnees" class="secondaire">Données clients</button>
+  <span class="compteur" id="compteur">0 / 27 questions répondues</span>
+  <button id="btn-valider">Valider mes réponses</button>
+  <button id="btn-recommencer" class="secondaire" style="display:none">Recommencer</button>
+</div>
+
+<script>
+"use strict";
+
+// ---- Donnees du quiz (memes questions et bareme que md/quiz.md / md/correction/Correcteur.java) ----
+
+const SECTIONS = {
+  A: { titre: "Section A : Vrai / Faux", sousTitre: "1 point par question", points: 1, max: 8 },
+  B: { titre: "Section B : QCM", sousTitre: "1 point par question", points: 1, max: 9 },
+  C: { titre: "Section C : Qu'affiche ce code ?", sousTitre: "2 points par question", points: 2, max: 10 },
+  D: { titre: "Section D : Agrégations & Collectors — avancé", sousTitre: "D1-D3 : 1 point, D4-D5 : 2 points", points: 1, max: 7 }
+};
+
+// option : {t: texte simple} | {c: code inline} | {p: bloc pre} | {t+p : texte puis bloc}
+const QUESTIONS = [
+  // ----- Section A -----
+  { id: "A1", s: "A", txt: "Une interface fonctionnelle peut contenir des méthodes <code>default</code> en plus de sa méthode abstraite.",
+    opts: [{t:"VRAI"},{t:"FAUX"}], rep: 0,
+    exp: "VRAI — une seule méthode abstraite exigée, mais les méthodes <code>default</code> et <code>static</code> sont permises (ex : <code>Predicate.and()</code> est une méthode default)." },
+  { id: "A2", s: "A", txt: "Une expression lambda peut remplacer n'importe quelle interface Java.",
+    opts: [{t:"VRAI"},{t:"FAUX"}], rep: 1,
+    exp: "FAUX — une lambda ne peut implémenter qu'une <strong>interface fonctionnelle</strong> (une seule méthode abstraite)." },
+  { id: "A3", s: "A", txt: "Les opérations intermédiaires d'un Stream (<code>filter</code>, <code>map</code>...) s'exécutent immédiatement, dès que la ligne est lue.",
+    opts: [{t:"VRAI"},{t:"FAUX"}], rep: 1,
+    exp: "FAUX — elles sont <strong>lazy</strong> : rien ne s'exécute avant une opération terminale (voir C3)." },
+  { id: "A4", s: "A", txt: "Un Stream peut être consommé plusieurs fois.",
+    opts: [{t:"VRAI"},{t:"FAUX"}], rep: 1,
+    exp: "FAUX — une deuxième opération terminale lève une <code>IllegalStateException</code> (voir C5)." },
+  { id: "A5", s: "A", txt: "Placer <code>filter</code> avant <code>map</code> dans un pipeline est une bonne pratique d'optimisation.",
+    opts: [{t:"VRAI"},{t:"FAUX"}], rep: 0,
+    exp: "VRAI — <code>filter</code> réduit le nombre d'éléments : on évite de transformer des éléments qui seront éliminés." },
+  { id: "A6", s: "A", txt: "Les Streams primitifs comme <code>IntStream</code> permettent d'éviter le boxing/unboxing.",
+    opts: [{t:"VRAI"},{t:"FAUX"}], rep: 0,
+    exp: "VRAI — <code>IntStream</code>, <code>LongStream</code>, <code>DoubleStream</code> travaillent sur des primitifs, sans conversion vers les wrappers." },
+  { id: "A7", s: "A", txt: "<code>Optional</code> aide à éviter les <code>NullPointerException</code>.",
+    opts: [{t:"VRAI"},{t:"FAUX"}], rep: 0,
+    exp: "VRAI — <code>Optional</code> force à gérer explicitement l'absence de valeur (<code>orElse</code>, <code>orElseGet</code>, <code>ifPresent</code>)." },
+  { id: "A8", s: "A", txt: "<code>parallelStream()</code> est toujours plus rapide que <code>stream()</code>.",
+    opts: [{t:"VRAI"},{t:"FAUX"}], rep: 1,
+    exp: "FAUX — la parallélisation a un coût (découpage, synchronisation) : rentable seulement sur de grandes volumétries." },
+
+  // ----- Section B -----
+  { id: "B1", s: "B", txt: "Quelle expression lambda est <strong>syntaxiquement correcte</strong> pour tester si un client habite Paris ?",
+    opts: [{c:'c => c.getVille().equals("Paris")'},
+           {c:'c -> c.getVille().equals("Paris")'},
+           {c:'Client c -> c.getVille().equals("Paris")'},
+           {c:'(c) -> { c.getVille().equals("Paris") }'}], rep: 1,
+    exp: "b) — <code>=&gt;</code> n'existe pas en Java (a), le type sans parenthèses est invalide (c), un bloc <code>{ }</code> exige un <code>return</code> explicite (d)." },
+  { id: "B2", s: "B", txt: "Dans quelle interface fonctionnelle stocker ce test, conçue pour <strong>évaluer une condition</strong> et retourner un <code>boolean</code> ?",
+    opts: [{c:"Function<Client, String>"},{c:"Consumer<Client>"},{c:"Predicate<Client>"},{c:"Supplier<Client>"}], rep: 2,
+    exp: "c) <code>Predicate&lt;Client&gt;</code> — conçu pour tester une condition, méthode <code>boolean test(T t)</code>." },
+  { id: "B3", s: "B", txt: "Vous disposez de <code>estParisien</code> et <code>estPremium</code>. Comment obtenir un test &laquo; parisien <strong>ET</strong> premium &raquo; ?",
+    opts: [{c:"estParisien.and(estPremium)"},{c:"estParisien.or(estPremium)"},{c:"estParisien && estPremium"},{c:"estParisien.negate(estPremium)"}], rep: 0,
+    exp: "a) — les <code>Predicate</code> se combinent avec <code>.and()</code>, <code>.or()</code>, <code>.negate()</code>. L'opérateur <code>&amp;&amp;</code> ne s'applique pas à des objets." },
+  { id: "B4", s: "B", txt: "Quelle <strong>référence de méthode</strong> est équivalente à la lambda <code>c -> c.getNom()</code> ?",
+    opts: [{c:"Client.getNom()"},{c:"Client::getNom()"},{c:"Client::getNom"},{c:"getNom::Client"}], rep: 2,
+    exp: "c) <code>Client::getNom</code> — une référence de méthode s'écrit <strong>sans parenthèses</strong>." },
+  { id: "B5", s: "B", txt: "Pour <strong>afficher</strong> chaque nom obtenu (une action, sans valeur de retour), quelle interface utiliser ?",
+    opts: [{c:"Consumer<String>"},{c:"Supplier<String>"},{c:"Function<String, Void>"},{c:"Predicate<String>"}], rep: 0,
+    exp: "a) <code>Consumer&lt;String&gt;</code> — consomme une valeur sans rien retourner, méthode <code>void accept(T t)</code>. Compatible avec <code>System.out::println</code>." },
+  { id: "B6", s: "B", txt: "Si aucun client ne correspond à une recherche, l'outil doit <strong>fournir un client par défaut</strong>. Quelle déclaration est correcte ?",
+    opts: [{c:'Consumer<Client> defaut = c -> new Client("Inconnu", "N/A", 0, 0.0);'},
+           {c:'Supplier<Client> defaut = () -> new Client("Inconnu", "N/A", 0, 0.0);'},
+           {c:'Supplier<Client> defaut = c -> new Client("Inconnu", "N/A", 0, 0.0);'},
+           {c:'Function<Client> defaut = () -> new Client("Inconnu", "N/A", 0, 0.0);'}], rep: 1,
+    exp: "b) — un <code>Supplier</code> ne prend <strong>aucun paramètre</strong> (<code>() -&gt;</code>) et fournit une valeur, méthode <code>T get()</code>." },
+  { id: "B7", s: "B", txt: "Dans le pipeline ci-dessous, quelle opération est <strong>terminale</strong> ?",
+    code: 'clients.stream().filter(estPremium).map(Client::getNom).sorted().forEach(System.out::println);',
+    opts: [{c:"filter"},{c:"map"},{c:"sorted"},{c:"forEach"}], rep: 3,
+    exp: "d) <code>forEach</code> — c'est elle qui déclenche le pipeline. <code>filter</code>, <code>map</code> et <code>sorted</code> sont intermédiaires (elles retournent un <code>Stream</code>)." },
+  { id: "B8", s: "B", txt: "Quel est le <strong>type de retour</strong> de l'expression suivante ?",
+    code: 'clients.stream().filter(estPremium).findFirst()',
+    opts: [{c:"Client"},{c:"Optional<Client>"},{c:"Stream<Client>"},{c:"boolean"}], rep: 1,
+    exp: "b) <code>Optional&lt;Client&gt;</code> — <code>findFirst()</code> retourne un <code>Optional</code> car il peut ne rien trouver." },
+  { id: "B9", s: "B", txt: "La base passe à <strong>plusieurs millions de clients</strong> et le serveur possède 16 cœurs. Quelle solution native Java le cours recommande-t-il d'essayer ?",
+    opts: [{c:"clients.stream().fast()"},{t:"Créer un Thread par client"},{c:"clients.parallelStream()"},{c:"clients.stream().limit(1000)"}], rep: 2,
+    exp: "c) <code>parallelStream()</code> — solution native pour paralléliser sur une collection volumineuse (ou <code>.parallel()</code> sur un Stream existant)." },
+
+  // ----- Section C -----
+  { id: "C1", s: "C", txt: "Les briques B1 à B5 assemblées en un premier pipeline :",
+    code: 'clients.stream()\n       .filter(c -> c.getVille().equals("Paris"))\n       .filter(c -> c.getDepenses() > 2000)\n       .map(Client::getNom)\n       .forEach(nom -> System.out.println("VIP : " + nom));',
+    opts: [{p:"VIP : Alice\nVIP : Charlie\nVIP : Marc"},
+           {p:"VIP : Charlie\nVIP : Marc"},
+           {p:"VIP : Marc"},
+           {t:"Rien ne s'affiche"}], rep: 1,
+    exp: "b) — parisiens : Alice (1500), Charlie (2500), Marc (3200). Seuls Charlie et Marc dépassent 2000 EUR. L'option a) correspond à l'oubli du second <code>filter</code>." },
+  { id: "C2", s: "C", txt: "Le <code>Supplier</code> de B6 en action :",
+    code: 'Supplier<Client> clientParDefaut = () -> new Client("Inconnu", "N/A", 0, 0.0);\n\nClient resultat = clients.stream()\n                         .filter(c -> c.getDepenses() > 5000)\n                         .findFirst()\n                         .orElseGet(clientParDefaut);\n\nSystem.out.println(resultat);',
+    opts: [{c:"null"},
+           {t:"Une NoSuchElementException est levée"},
+           {c:"Inconnu (N/A, 0 ans, 0.0 EUR)"},
+           {c:"Marc (Paris, 52 ans, 3200.0 EUR)"}], rep: 2,
+    exp: "c) — aucun client ne dépense plus de 5000 EUR : <code>findFirst()</code> retourne un <code>Optional</code> vide, <code>orElseGet</code> appelle le <code>Supplier</code>. Ni <code>null</code>, ni exception : c'est l'intérêt d'<code>Optional</code>." },
+  { id: "C3", s: "C", txt: "Un collègue a ajouté un affichage dans le <code>filter</code> pour tracer l'exécution (extrait indépendant) :",
+    code: 'List<String> villes = List.of("Paris", "Lyon", "Nice", "Lille", "Nantes");\n\nlong nb = villes.stream()\n                .filter(v -> {\n                    System.out.println("filtre : " + v);\n                    return v.length() == 4;\n                })\n                .limit(2)\n                .count();\n\nSystem.out.println("Resultat : " + nb);',
+    opts: [{p:"filtre : Paris\nfiltre : Lyon\nfiltre : Nice\nfiltre : Lille\nfiltre : Nantes\nResultat : 2"},
+           {p:"Resultat : 2"},
+           {p:"filtre : Lyon\nfiltre : Nice\nResultat : 2"},
+           {p:"filtre : Paris\nfiltre : Lyon\nfiltre : Nice\nResultat : 2"}], rep: 3,
+    exp: "d) — <strong>lazy + court-circuit</strong> : Paris (5 lettres) rejeté, Lyon et Nice acceptés. Dès que <code>limit(2)</code> a ses 2 éléments, le Stream s'arrête : Lille et Nantes ne sont jamais filtrés. L'option a) correspond à une exécution non lazy." },
+  { id: "C4", s: "C", txt: "Combinaison de prédicats :",
+    code: 'Predicate<Client> estParisien = c -> c.getVille().equals("Paris");\nPredicate<Client> estPremium = c -> c.getDepenses() > 1000;\n\nclients.stream()\n       .filter(estParisien.negate().and(estPremium))\n       .map(Client::getNom)\n       .forEach(System.out::println);',
+    opts: [{p:"Diana"},
+           {p:"Bob\nDiana\nEve"},
+           {p:"Alice\nCharlie\nMarc"},
+           {p:"Diana\nEve"}], rep: 0,
+    exp: "a) — <code>negate().and(estPremium)</code> = &laquo; non parisien ET premium &raquo;. Non-parisiens : Bob (800), Diana (1200), Eve (950). Seule Diana est premium. L'option c) correspond à l'oubli du <code>negate()</code>." },
+  { id: "C5", s: "C", txt: "Un collègue a voulu réutiliser le même Stream pour deux statistiques :",
+    code: 'Stream<Client> stream = clients.stream();\n\nSystem.out.println("Nombre de clients : " + stream.count());\nSystem.out.println("Premier client : " + stream.findFirst());',
+    opts: [{t:"Les deux lignes s'affichent :", p:"Nombre de clients : 6\nPremier client : Optional[Alice (Paris, 32 ans, 1500.0 EUR)]"},
+           {t:"La 1re ligne s'affiche, puis une IllegalStateException est levée :", p:"Nombre de clients : 6\nException in thread \"main\" java.lang.IllegalStateException: stream has already been operated upon or closed"},
+           {t:"Une IllegalStateException est levée dès la 1re ligne : rien ne s'affiche"},
+           {t:"Erreur de compilation : un Stream ne peut pas être stocké dans une variable"}], rep: 1,
+    exp: "b) — <code>count()</code> est une opération terminale qui <strong>consomme</strong> le Stream. <code>findFirst()</code> lève une <code>IllegalStateException</code>. Il faut recréer un Stream pour chaque statistique." },
+
+  // ----- Section D (avancé) : pts par question via le champ pts -----
+  { id: "D1", s: "D", pts: 1, txt: "Quel appel produit une <code>Map&lt;String, Long&gt;</code> donnant le <strong>nombre de clients par ville</strong> ?",
+    opts: [{c:"clients.stream().collect(Collectors.groupingBy(Client::getVille))"},
+           {c:"clients.stream().collect(Collectors.groupingBy(Client::getVille, Collectors.counting()))"},
+           {c:"clients.stream().collect(Collectors.counting(Client::getVille))"},
+           {c:"clients.stream().map(Client::getVille).count()"}], rep: 1,
+    exp: "b) — la forme à 2 arguments : le classificateur, puis le Collector « aval » appliqué à chaque groupe. a) <code>groupingBy</code> seul produit une <code>Map&lt;String, List&lt;Client&gt;&gt;</code> ; c) <code>counting()</code> ne prend aucun argument ; d) <code>count()</code> retourne un <code>long</code> global." },
+  { id: "D2", s: "D", pts: 1, txt: "Quelle lambda est un <code>BinaryOperator&lt;Client&gt;</code> valide pour garder <strong>le plus dépensier de deux clients</strong> ?",
+    opts: [{c:"c -> c.getDepenses() > 1000"},
+           {c:"(c1, c2) -> c1.getDepenses() > c2.getDepenses()"},
+           {c:"(c1, c2) -> c1.getDepenses() > c2.getDepenses() ? c1 : c2"},
+           {c:"(c1, c2) -> Comparator.comparingDouble(Client::getDepenses)"}], rep: 2,
+    exp: "c) — un <code>BinaryOperator&lt;Client&gt;</code> prend <strong>deux</strong> <code>Client</code> et retourne <strong>un</strong> <code>Client</code>. a) est un <code>Predicate</code> ; b) retourne un <code>boolean</code> ; d) retourne un <code>Comparator</code>." },
+  { id: "D3", s: "D", pts: 1, txt: "Quel est le <strong>type de retour</strong> de l'expression suivante ?",
+    code: 'clients.stream().max(Comparator.comparingDouble(Client::getDepenses))',
+    opts: [{c:"Client"},{c:"double"},{c:"Stream<Client>"},{c:"Optional<Client>"}], rep: 3,
+    exp: "d) <code>Optional&lt;Client&gt;</code> — comme <code>findFirst()</code> (B8), <code>max()</code> retourne un <code>Optional</code> car le Stream peut être vide. On en extrait la valeur avec <code>orElse</code>, <code>orElseGet</code>..." },
+  { id: "D4", s: "D", pts: 2, txt: "Le total des dépenses avec <code>reduce</code> :",
+    code: 'double total = clients.stream()\n                      .map(Client::getDepenses)\n                      .reduce(0.0, Double::sum);\n\nSystem.out.println("Total : " + total + " EUR");',
+    opts: [{c:"Total : 10150.0 EUR"},
+           {c:"Total : 0.0 EUR"},
+           {c:"Total : 3200.0 EUR"},
+           {t:"Erreur de compilation : reduce ne prend qu'un seul argument"}], rep: 0,
+    exp: "a) — <code>reduce(0.0, Double::sum)</code> part de l'identité <code>0.0</code> et accumule : 1500 + 800 + 2500 + 1200 + 950 + 3200 = 10150.0. La forme à 2 arguments retourne directement un <code>double</code> (pas d'<code>Optional</code>)." },
+  { id: "D5", s: "D", pts: 2, txt: "Le rapport final liste les clients premium :",
+    code: 'String premium = clients.stream()\n                        .filter(c -> c.getDepenses() > 1000)\n                        .map(Client::getNom)\n                        .collect(Collectors.joining(", "));\n\nSystem.out.println("Premium : " + premium);',
+    opts: [{c:"Premium : [Alice, Charlie, Diana, Marc]"},
+           {c:"Premium : Alice, Charlie, Diana, Marc, "},
+           {c:"Premium : Alice, Charlie, Diana, Marc"},
+           {c:"Premium : AliceCharlieDianaMarc"}], rep: 2,
+    exp: "c) — <code>Collectors.joining(\", \")</code> insère le séparateur <strong>entre</strong> les éléments : ni crochets (a — <code>toString()</code> d'une <code>List</code>), ni séparateur final (b), ni concaténation brute (d). Les 4 premium dans l'ordre de la liste." }
+];
+
+const LETTRES = ["a", "b", "c", "d"];
+
+// ---- Construction du quiz ----
+
+const zone = document.getElementById("quiz");
+let corrige = false;
+
+function construire() {
+  zone.innerHTML = "";
+  let sectionCourante = null;
+  QUESTIONS.forEach(q => {
+    if (q.s !== sectionCourante) {
+      sectionCourante = q.s;
+      const h = document.createElement("h2");
+      h.className = "section-titre";
+      h.textContent = SECTIONS[q.s].titre + " — " + SECTIONS[q.s].sousTitre;
+      zone.appendChild(h);
+    }
+    const carte = document.createElement("div");
+    carte.className = "carte";
+    carte.id = "q-" + q.id;
+
+    const enonce = document.createElement("p");
+    enonce.innerHTML = '<span class="q-num">' + q.id + '.</span><span class="q-verdict"></span> ' + q.txt;
+    carte.appendChild(enonce);
+
+    if (q.code) {
+      const pre = document.createElement("pre");
+      const code = document.createElement("code");
+      code.textContent = q.code;
+      pre.appendChild(code);
+      carte.appendChild(pre);
+    }
+
+    const conteneurOpts = document.createElement("div");
+    conteneurOpts.className = "options";
+    const estVF = q.s === "A";
+    q.opts.forEach((opt, i) => {
+      const label = document.createElement("label");
+      label.className = "option";
+      label.dataset.index = i;
+      const radio = document.createElement("input");
+      radio.type = "radio";
+      radio.name = q.id;
+      radio.value = i;
+      radio.addEventListener("change", majCompteur);
+      label.appendChild(radio);
+      const prefixe = estVF ? "" : LETTRES[i] + ") ";
+      if (opt.t) {
+        label.appendChild(document.createTextNode(prefixe + opt.t));
+      } else if (opt.c) {
+        label.appendChild(document.createTextNode(prefixe));
+        const code = document.createElement("code");
+        code.textContent = opt.c;
+        label.appendChild(code);
+      } else {
+        label.appendChild(document.createTextNode(prefixe));
+      }
+      if (opt.p) {
+        const pre = document.createElement("pre");
+        pre.textContent = opt.p;
+        label.appendChild(pre);
+      }
+      conteneurOpts.appendChild(label);
+    });
+    carte.appendChild(conteneurOpts);
+
+    const expl = document.createElement("div");
+    expl.className = "explication";
+    expl.innerHTML = q.exp;
+    carte.appendChild(expl);
+
+    zone.appendChild(carte);
+  });
+}
+
+function reponsesCochees() {
+  const map = {};
+  QUESTIONS.forEach(q => {
+    const coche = document.querySelector('input[name="' + q.id + '"]:checked');
+    map[q.id] = coche ? parseInt(coche.value, 10) : null;
+  });
+  return map;
+}
+
+function majCompteur() {
+  const nb = Object.values(reponsesCochees()).filter(v => v !== null).length;
+  document.getElementById("compteur").textContent = nb + " / " + QUESTIONS.length + " questions répondues";
+}
+
+// ---- Correction ----
+
+function valider() {
+  if (corrige) return;
+  const reponses = reponsesCochees();
+  const vides = QUESTIONS.filter(q => reponses[q.id] === null).map(q => q.id);
+  if (vides.length > 0) {
+    const ok = confirm("Questions sans réponse : " + vides.join(", ") +
+                       "\nElles compteront 0 point. Valider quand même ?");
+    if (!ok) return;
+  }
+
+  const scores = { A: 0, B: 0, C: 0, D: 0 };
+  QUESTIONS.forEach(q => {
+    const carte = document.getElementById("q-" + q.id);
+    const choix = reponses[q.id];
+    const juste = choix === q.rep;
+    if (juste) scores[q.s] += q.pts || SECTIONS[q.s].points;
+    carte.classList.add("corrige", juste ? "ok" : "ko");
+    carte.querySelector(".q-verdict").textContent = juste ? "✅" : "❌";
+    carte.querySelectorAll("label.option").forEach(label => {
+      const i = parseInt(label.dataset.index, 10);
+      if (i === q.rep) label.classList.add("bonne");
+      else if (i === choix) label.classList.add("mauvaise");
+      label.querySelector("input").disabled = true;
+    });
+  });
+
+  const total = scores.A + scores.B + scores.C + scores.D;
+  const resume =
+    '<div class="score">Score : ' + total + ' / 34</div>' +
+    '<div class="detail">Section A : ' + scores.A + ' / 8 &mdash; ' +
+    'Section B : ' + scores.B + ' / 9 &mdash; ' +
+    'Section C : ' + scores.C + ' / 10 &mdash; ' +
+    'Section D : ' + scores.D + ' / 7</div>' +
+    '<div class="detail">' + appreciation(total) + '</div>';
+  const resultat = document.getElementById("resultat");
+  resultat.innerHTML = resume;
+  resultat.style.display = "block";
+  const resultatBas = document.getElementById("resultat-bas");
+  resultatBas.innerHTML = '<div id="resultat" style="display:block">' + resume + '</div>';
+
+  corrige = true;
+  document.getElementById("btn-valider").style.display = "none";
+  document.getElementById("btn-recommencer").style.display = "inline-block";
+  resultat.scrollIntoView({ behavior: "smooth" });
+}
+
+function appreciation(total) {
+  if (total >= 30) return "Excellent : les Streams n'ont plus de secret pour vous !";
+  if (total >= 24) return "Très bien : quelques pièges à revoir dans les explications ci-dessous.";
+  if (total >= 17) return "Bien : relisez les explications, en particulier vos questions en rouge.";
+  return "À retravailler : reprenez les chapitres Expressions Lambda et Stream, puis retentez le quiz.";
+}
+
+function recommencer() {
+  corrige = false;
+  document.getElementById("resultat").style.display = "none";
+  document.getElementById("resultat-bas").innerHTML = "";
+  document.getElementById("btn-valider").style.display = "inline-block";
+  document.getElementById("btn-recommencer").style.display = "none";
+  construire();
+  majCompteur();
+  window.scrollTo({ top: 0, behavior: "smooth" });
+}
+
+document.getElementById("btn-valider").addEventListener("click", valider);
+document.getElementById("btn-recommencer").addEventListener("click", recommencer);
+
+// ---- Panneau "Donnees clients" ----
+
+const overlayDonnees = document.getElementById("overlay-donnees");
+function basculerDonnees() { overlayDonnees.classList.toggle("ouvert"); }
+function fermerDonnees() { overlayDonnees.classList.remove("ouvert"); }
+
+document.getElementById("btn-donnees").addEventListener("click", basculerDonnees);
+document.getElementById("btn-fermer-donnees").addEventListener("click", fermerDonnees);
+overlayDonnees.addEventListener("click", e => {
+  if (e.target === overlayDonnees) fermerDonnees();
+});
+
+construire();
+majCompteur();
+</script>
+
+</body>
+</html>
